@@ -1,25 +1,22 @@
 <?php
-
-namespace Tests\Feature;
-
 use App\Models\User;
 use App\Models\Producto;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class CompraTest extends TestCase
+class CarritoTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_usuario_puede_confirmar_compra()
+    public function test_usuario_puede_ver_su_carrito()
     {
         $user = User::factory()->create();
-        $token = auth('api')->login($user);
+        $token = auth('api')->login($user); // ← usa el guard correcto
 
         $producto = Producto::create([
-            'nombre' => 'Zapatos',
-            'precio' => 49.99,
-            'stock' => 5,
+            'nombre' => 'Camiseta',
+            'precio' => 19.99,
+            'stock' => 10,
         ]);
 
         $this->withHeader('Authorization', "Bearer $token")
@@ -29,9 +26,12 @@ class CompraTest extends TestCase
              ]);
 
         $response = $this->withHeader('Authorization', "Bearer $token")
-                         ->post('/api/confirmar-compra');
+                         ->get('/api/carrito');
 
         $response->assertStatus(200);
-        $response->assertJsonFragment(['mensaje' => 'Compra confirmada']);
+        $response->assertJsonFragment([
+            'producto_id' => $producto->id,
+            'cantidad' => 2,
+        ]);
     }
 }

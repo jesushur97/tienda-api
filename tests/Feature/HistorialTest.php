@@ -7,31 +7,34 @@ use App\Models\Producto;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
-class CompraTest extends TestCase
+class HistorialTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_usuario_puede_confirmar_compra()
+    public function test_usuario_puede_ver_su_historial_de_compras()
     {
         $user = User::factory()->create();
         $token = auth('api')->login($user);
 
         $producto = Producto::create([
-            'nombre' => 'Zapatos',
-            'precio' => 49.99,
-            'stock' => 5,
+            'nombre' => 'Mochila',
+            'precio' => 29.99,
+            'stock' => 10,
         ]);
 
         $this->withHeader('Authorization', "Bearer $token")
              ->postJson('/api/carrito', [
                  'producto_id' => $producto->id,
-                 'cantidad' => 2,
+                 'cantidad' => 1,
              ]);
 
+        $this->withHeader('Authorization', "Bearer $token")
+             ->post('/api/confirmar-compra');
+
         $response = $this->withHeader('Authorization', "Bearer $token")
-                         ->post('/api/confirmar-compra');
+                         ->get('/api/mis-compras');
 
         $response->assertStatus(200);
-        $response->assertJsonFragment(['mensaje' => 'Compra confirmada']);
+        $response->assertJsonFragment(['total' => '29.99']);
     }
 }
