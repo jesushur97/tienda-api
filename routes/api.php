@@ -9,6 +9,7 @@ use App\Models\OrderItem;
 use App\Http\Controllers\AuthController;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Http\Controllers\CarritoController;
 
 // Ruta de prueba
 Route::get('/ping', fn() => response()->json(['message' => 'pong']));
@@ -33,6 +34,15 @@ Route::middleware('auth.api')->post('/productos', function (Request $request) {
 
     return response()->json(['mensaje' => 'Producto creado', 'producto' => $producto]);
 });
+//Eliminar producto
+
+Route::middleware('auth.api')->delete('/productos/{id}', function ($id) {
+    $producto = Producto::findOrFail($id);
+    $producto->delete();
+
+    return response()->json(['mensaje' => 'Producto eliminado']);
+});
+
 
 // Añadir al carrito
 Route::middleware('auth.api')->post('/carrito', function (Request $request) {
@@ -53,6 +63,11 @@ Route::middleware('auth.api')->post('/carrito', function (Request $request) {
 Route::middleware('auth.api')->get('/carrito', function (Request $request) {
     return CarritoItem::with('producto')->where('user_id', $request->user()->id)->get();
 });
+
+//Eliminar productos del carrito
+
+
+Route::middleware('auth.api')->delete('/carrito/{id}', [CarritoController::class, 'eliminar']);
 
 // Confirmar compra
 Route::middleware('auth.api')->post('/confirmar-compra', function (Request $request) {
