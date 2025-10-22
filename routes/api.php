@@ -6,24 +6,48 @@ use App\Models\Producto;
 use App\Models\CarritoItem;
 use App\Models\Order;
 use App\Models\OrderItem;
-use App\Http\Controllers\AuthController;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use App\Http\Controllers\AuthController;
 use App\Http\Controllers\CarritoController;
+use Tymon\JWTAuth\Facades\JWTAuth;
 
 // Ruta de prueba
 Route::get('/ping', fn() => response()->json(['message' => 'pong']));
 
 // Autenticación
 Route::post('/login', [AuthController::class, 'login']);
-Route::middleware('auth.api')->get('/me', [AuthController::class, 'me']);
-Route::middleware('auth.api')->post('/logout', [AuthController::class, 'logout']);
+Route::middleware('auth:api')->get('/me', [AuthController::class, 'me']);
+Route::middleware('auth:api')->post('/logout', [AuthController::class, 'logout']);
+
+// Registro de usuario
+Route::post('/register', function (Request $request) {
+    $validated = $request->validate([
+        'name' => 'required|string|max:255',
+        'email' => 'required|email|unique:users,email',
+        'password' => 'required|string|min:6',
+    ]);
+
+    $user = User::create([
+        'name' => $validated['name'],
+        'email' => $validated['email'],
+        'password' => Hash::make($validated['password']),
+    ]);
+
+    $token = auth('api')->login($user);
+
+    return response()->json([
+        'access_token' => $token,
+        'token_type' => 'bearer',
+        'expires_in' => auth('api')->factory()->getTTL() * 60
+    ]);
+});
 
 // Listar productos (público)
 Route::get('/productos', fn() => Producto::all());
 
 // Crear producto (requiere token)
-Route::middleware('auth.api')->post('/productos', function (Request $request) {
+Route::middleware('auth:api')->post('/productos', function (Request $request) {
     $validated = $request->validate([
         'nombre' => 'required|string|max:255',
         'precio' => 'required|numeric|min:0',
@@ -34,25 +58,26 @@ Route::middleware('auth.api')->post('/productos', function (Request $request) {
 
     return response()->json(['mensaje' => 'Producto creado', 'producto' => $producto]);
 });
-//Eliminar producto
 
-Route::middleware('auth.api')->delete('/productos/{id}', function ($id) {
+// Eliminar producto
+Route::middleware('auth:api')->delete('/productos/{id}', function ($id) {
     $producto = Producto::findOrFail($id);
     $producto->delete();
 
     return response()->json(['mensaje' => 'Producto eliminado']);
 });
 
-
 // Añadir al carrito
-Route::middleware('auth.api')->post('/carrito', function (Request $request) {
-    $validated = $request->validate([
+Route::middleware('auth:api')->post('/carrito', function () {
+    $user = JWTAuth::parseToken()->authenticate();
+
+    $validated = request()->validate([
         'producto_id' => 'required|exists:productos,id',
         'cantidad' => 'required|integer|min:1',
     ]);
 
     $item = CarritoItem::updateOrCreate(
-        ['user_id' => $request->user()->id, 'producto_id' => $validated['producto_id']],
+        ['user_id' => $user->id, 'producto_id' => $validated['producto_id']],
         ['cantidad' => \DB::raw("cantidad + {$validated['cantidad']}")]
     );
 
@@ -60,18 +85,17 @@ Route::middleware('auth.api')->post('/carrito', function (Request $request) {
 });
 
 // Ver carrito
-Route::middleware('auth.api')->get('/carrito', function (Request $request) {
-    return CarritoItem::with('producto')->where('user_id', $request->user()->id)->get();
+Route::middleware('auth:api')->get('/carrito', function () {
+    $user = JWTAuth::parseToken()->authenticate();
+    return CarritoItem::with('producto')->where('user_id', $user->id)->get();
 });
 
-//Eliminar productos del carrito
-
-
-Route::middleware('auth.api')->delete('/carrito/{id}', [CarritoController::class, 'eliminar']);
+// Eliminar producto del carrito
+Route::middleware('auth:api')->delete('/carrito/{id}', [CarritoController::class, 'eliminar']);
 
 // Confirmar compra
-Route::middleware('auth.api')->post('/confirmar-compra', function (Request $request) {
-    $user = $request->user();
+Route::middleware('auth:api')->post('/confirmar-compra', function () {
+    $user = JWTAuth::parseToken()->authenticate();
     $items = CarritoItem::where('user_id', $user->id)->with('producto')->get();
 
     if ($items->isEmpty()) {
@@ -102,25 +126,7 @@ Route::middleware('auth.api')->post('/confirmar-compra', function (Request $requ
 });
 
 // Ver historial de compras
-Route::middleware('auth.api')->get('/mis-compras', function (Request $request) {
-    return Order::with(['items.producto'])->where('user_id', $request->user()->id)->latest()->get();
-});
-
-
-Route::post('/register', function (Request $request) {
-    $validated = $request->validate([
-        'name' => 'required|string|max:255',
-        'email' => 'required|email|unique:users,email',
-        'password' => 'required|string|min:6',
-    ]);
-
-    $user = User::create([
-        'name' => $validated['name'],
-        'email' => $validated['email'],
-        'password' => Hash::make($validated['password']),
-    ]);
-
-    $token = auth()->login($user);
-
-    return response()->json(['token' => $token]);
+Route::middleware('auth:api')->get('/mis-compras', function () {
+    $user = JWTAuth::parseToken()->authenticate();
+    return Order::with(['items.producto'])->where('user_id', $user->id)->latest()->get();
 });
