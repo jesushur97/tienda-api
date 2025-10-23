@@ -3,42 +3,41 @@
 namespace App\Http\Controllers;
 
 use App\Models\CarritoItem;
-use App\Models\Producto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\DB;
 
 class CarritoController extends Controller
 {
+    // Añadir o actualizar producto en el carrito
     public function agregar(Request $request)
-{
-    $request->validate([
-        'producto_id' => 'required|exists:productos,id',
-        'cantidad' => 'required|integer|min:1'
-    ]);
+    {
+        $request->validate([
+            'producto_id' => 'required|exists:productos,id',
+            'cantidad' => 'required|integer|min:1'
+        ]);
 
-    $item = CarritoItem::where('user_id', Auth::id())
-        ->where('producto_id', $request->producto_id)
-        ->first();
+        $item = CarritoItem::where('user_id', Auth::id())
+            ->where('producto_id', $request->producto_id)
+            ->first();
 
-    if ($item) {
-        $item->cantidad += $request->cantidad;
-        $item->save();
-    } else {
-        $item = CarritoItem::create([
-            'user_id' => auth()->id(), // ← corregido aquí
-            'producto_id' => $request->producto_id,
-            'cantidad' => $request->cantidad
+        if ($item) {
+            $item->cantidad += $request->cantidad;
+            $item->save();
+        } else {
+            $item = CarritoItem::create([
+                'user_id' => Auth::id(),
+                'producto_id' => $request->producto_id,
+                'cantidad' => $request->cantidad
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'Producto agregado al carrito',
+            'item' => $item
         ]);
     }
 
-    return response()->json([
-        'message' => 'Producto agregado al carrito',
-        'item' => $item
-    ]);
-}
-
-
+    // Ver contenido del carrito
     public function ver()
     {
         $items = CarritoItem::with('producto')
@@ -48,6 +47,7 @@ class CarritoController extends Controller
         return response()->json($items);
     }
 
+    // Eliminar un producto del carrito
     public function eliminar($id)
     {
         $item = CarritoItem::where('id', $id)
